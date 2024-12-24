@@ -1,0 +1,18 @@
+{
+    "BUY_TOKEN": {
+        "address": "0x",
+        "symbol": "ETH",
+        "isNative": true,
+        "decimals": 18,
+        "minBalance": 0.01
+    },
+    "SELL_TOKEN": {
+        "address": "0x51fFD3785c15cb59a7287b7C18cb16C0F1d2915b",
+        "symbol": "USDT",
+        "isNative":false,
+        "decimals": 18
+    },
+    "TICK_SPACING": 0.05,
+    "RANGE_SPACING": 0.1,
+    "DEX_CONTRACT": "0xC09D4029716DB08ccC2A31505DBf99B66a65b890"
+}

@@ -1,0 +1,46 @@
+sequenceDiagram
+    participant Bot as MarketMaker Bot
+    participant Wallet
+    participant PriceOracle
+    participant DEX
+    participant Timer
+
+    Note over Bot: Normal Flow
+    
+    loop Every Timer Interval
+        Timer->>Bot: Trigger execution
+        Bot->>Wallet: Get balance
+        Wallet-->>Bot: Return balance
+        
+        Bot->>PriceOracle: Get token price
+        PriceOracle-->>Bot: Return price
+        
+        Note over Bot: Generate order sizes<br/>for each tick
+        
+        loop For each tick
+            Bot->>DEX: Submit order to orderbook
+            DEX-->>Bot: Order confirmation
+        end
+    end
+    
+    Note over Bot,DEX: Event Flow
+    
+    DEX->>Bot: Contract event notification
+    activate Bot
+    Bot->>Wallet: Check balance changes
+    Wallet-->>Bot: Return updated balance
+    
+    alt Balance Changed
+        Bot->>Timer: Clear timer
+        Note over Bot: Force start normal flow
+        Bot->>Wallet: Get balance
+        Wallet-->>Bot: Return balance
+        Bot->>PriceOracle: Get token price
+        PriceOracle-->>Bot: Return price
+        Note over Bot: Generate order sizes<br/>for each tick
+        loop For each tick
+            Bot->>DEX: Submit order to orderbook
+            DEX-->>Bot: Order confirmation
+        end
+    end
+    deactivate Bot
