@@ -4,13 +4,15 @@
         "symbol": "ETH",
         "isNative": true,
         "decimals": 18,
-        "minBalance": 0.01
+        "minBalance": 0.01,
+        "rebalancingThreshold": 0.5
     },
     "SELL_TOKEN": {
         "address": "0x51fFD3785c15cb59a7287b7C18cb16C0F1d2915b",
         "symbol": "USDT",
         "isNative":false,
-        "decimals": 18
+        "decimals": 18,
+        "rebalancingThreshold": 0.5
     },
     "TICK_SPACING": 0.05,
     "RANGE_SPACING": 0.1,

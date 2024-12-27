@@ -60,7 +60,7 @@ export function distributeCapitalWithLimit(
   tickLower: number,
   tickUpper: number,
   maxTicks: number
-): { tick: number; size: BigInt }[] {
+): { tick: number; size: bigint, realPrice: number }[] {
   const tickRange = tickUpper - tickLower;
 
   if (tickRange <= 0) {
