@@ -1,30 +1,81 @@
 import type { Wallet, InterfaceAbi } from 'ethers'
-import { Contract, formatEther, formatUnits, parseEther, parseUnits } from 'ethers'
+import { Contract, formatEther, formatUnits } from 'ethers'
 import { getPriceFromBinance } from './utils/priceOracle'
 import config from '../config/config.json'
 import type Config from './interfaces/Config'
 import type MMBot from './MMBot'
-import dexAbi from './abi/dex.json'
+import BitmapManagerABI from './abi/bitmap_manager.json'
 import erc20Abi from './abi/erc20.json'
+import EngineABI from './abi/engine.json'
 import Logger from './utils/Logger'
 import type { TokenConfig } from './interfaces/Config'
+import type Order from './interfaces/Order'
 
 class Dex {
-  private readonly instance: Contract
-  private readonly abi: InterfaceAbi = dexAbi as InterfaceAbi
+  private readonly BOOK_ENGINE: Contract
+  private readonly BITMAP_MANAGER: Contract
   private readonly CONFIG: Config = config as Config
+  private readonly WALLET: Wallet
 
   private readonly Logger: Logger = new Logger();
 
+  private orders: Array<Order> = [];
+
   constructor(MMWallet: Wallet) {
-    this.instance = new Contract(this.CONFIG.DEX_CONTRACT, this.abi, MMWallet)
+    this.BOOK_ENGINE = new Contract(this.CONFIG.BOOK_ENGINE_CA, EngineABI, MMWallet);
+    this.BITMAP_MANAGER = new Contract(this.CONFIG.BITMAP_MANAGER_CA, BitmapManagerABI, MMWallet);
+    this.WALLET = MMWallet;
   }
 
-  async createOrder( token: TokenConfig, amount: bigint, price: number, type: `sell` | `buy`): Promise<void> {
-    this.Logger.info({ context: 'Dex', message: `Creating ${type} order for ${formatUnits(String(amount), token.decimals)} ${token.symbol} at price ${price}` });
+  /**
+   * Get the current tick from the BitmapManager contract
+   * @returns the current tick
+   */
+  async getCurrentTick(): Promise<number> {
+    return Number(await this.BITMAP_MANAGER.getCurrentTick());
   }
 
+  // push the buy and sell order to the orders array
+  /**
+   * Create Order then push it to the orders array
+   * @param amount amount of token to be traded
+   * @param tick the tick the order placed
+   * @param type order type is `sell` or `buy`
+   */
+  async createOrder( amount: bigint, tick: number, type: `sell` | `buy`): Promise<void> {
+    this.orders.push({ tick, amount, isBuy: type === `buy` });
+  }
+
+  /**
+   * Execute all orders in the orders array
+   * @returns boolean if the order is executed or not
+   */
+  async executeOrders(noonce: number): Promise<boolean> {
+    let executeNonce = noonce + 1;
+    const address: string = await this.WALLET.getAddress();
+    for(let order of this.orders) {
+      // this mean if index 0 was 0 amount , no need to interate another order
+      if(order.amount === BigInt(0)) continue;
+
+      this.Logger.info({ context: 'Dex', message: `Placing Order with tick ${order.tick} and order size ${formatEther(order.amount)}` });
+
+      this.BOOK_ENGINE.placeOrder(order.tick, order.amount, address, order.isBuy, false, {noonce: executeNonce})
+        .then((tx) => {
+          this.Logger.success({ context: 'Dex', message: `Order Submitted with tick ${order.tick} and order size ${formatEther(order.amount)}` });
+        })
+        .catch((err) => this.Logger.error({ context: 'Dex', message: `Order Submission Failed with tick ${order.tick} cause : ${err.message}` }));
+      executeNonce++;
+    }
+    this.orders = [];
+    return true;
+  }
   
+  /**
+   * Approve the token to be spent by the Balance Manager contract
+   * @param token token config (refer to interfaces/Config.ts)
+   * @param bot MMBot instance
+   * @returns void
+   */
   async Approving(token: TokenConfig, bot: MMBot): Promise<void> {
     if (token.isNative) {
       this.Logger.info({ context: 'MMBot', message: `Native Token doesn't need to be approved` });
@@ -33,38 +84,46 @@ class Dex {
     const ERC20: Contract = new Contract(token.address, erc20Abi as InterfaceAbi, bot.MM_WALLET);
     
     const balance = await bot.getBalance(token);
-    const allowance = await ERC20.allowance(bot.MM_WALLET.address, this.CONFIG.DEX_CONTRACT);
+    const allowance = await ERC20.allowance(bot.MM_WALLET.address, this.CONFIG.BOOK_ENGINE_CA);
 
     if(BigInt(allowance) < balance) {
-      this.Logger.info({ context: 'MMBot', message: `Approving ${this.CONFIG.DEX_CONTRACT} for spending ${formatEther(balance)} ${token.symbol}`});
-      await (await ERC20.approve(this.CONFIG.DEX_CONTRACT, balance)).wait();
+      this.Logger.info({ context: 'MMBot', message: `Approving ${this.CONFIG.BOOK_ENGINE_CA} for spending ${formatEther(balance)} ${token.symbol}`});
+      await (await ERC20.approve(this.CONFIG.BOOK_ENGINE_CA, balance)).wait();
       this.Logger.success({ context: 'MMBot', message: `Approved Transaction Confirmed`});
     }else {
       this.Logger.info({ context: 'MMBot', message: `Allowance is enough`});
     }
   }
 
-
+  /**
+   * Get the price of the token from Binance API
+   * @param token token symbol
+   * @returns the price of the token
+   */
   async getPrice(token: string): Promise<number> {
     const buy = this.CONFIG.BUY_TOKEN.symbol.toUpperCase()
     const sell = this.CONFIG.SELL_TOKEN.symbol.toUpperCase()
     return await getPriceFromBinance(`${buy}${sell}`)
   }
 
+  /**
+   * Subscribe to the event listener from the Book Engine contract
+   * @param bot MMBot instance
+   */
   async subscribeEvent(bot: MMBot): Promise<void> {
     this.Logger.debug({ context: 'Dex', message: `Starting Event Listener` });
 
-    this.instance.on('JoinRaffle', async () => {
-      this.Logger.info({ context: 'Dex', message: `New Trade Detected` });
-      const sellThreshold = await bot.isThresholdPassed(`sell`);
-      const buyThreshold = await bot.isThresholdPassed(`buy`);
-      if (!sellThreshold && !buyThreshold) {
-        this.Logger.info({ context: 'Dex', message: `Bot Balance is not changed` });
-        return
-      }
-      if(sellThreshold) bot.reRun(`sell`);
-      if(buyThreshold) bot.reRun(`buy`);
-    })
+    // this.BOOK_ENGINE_CA.on('JoinRaffle', async () => {
+    //   this.Logger.info({ context: 'Dex', message: `New Trade Detected` });
+    //   const sellThreshold = await bot.isThresholdPassed(`sell`);
+    //   const buyThreshold = await bot.isThresholdPassed(`buy`);
+    //   if (!sellThreshold && !buyThreshold) {
+    //     this.Logger.info({ context: 'Dex', message: `Bot Balance is not changed` });
+    //     return
+    //   }
+    //   if(sellThreshold) bot.reRun(`sell`);
+    //   if(buyThreshold) bot.reRun(`buy`);
+    // })
   }
 }
 

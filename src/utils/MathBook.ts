@@ -46,57 +46,85 @@ export function getTickRange(
   const tickUpper = getValidTick(getTickFromPrice(priceUpper), tickSpacing)
   return { tickLower, tickUpper }
 }
-
 /**
- * Mendapatkan distribusi modal secara merata dalam range tick dengan opsi batas jumlah tick.
+ * Membagi modal dalam rentang tick dengan berbagai mode distribusi.
  * @param totalCapital Modal total yang ingin didistribusikan.
- * @param tickLower Batas bawah tick.
- * @param tickUpper Batas atas tick.
- * @param maxTicks Jumlah maksimal tick untuk distribusi (0 untuk tanpa batas).
- * @returns Distribusi modal untuk tick yang dipilih.
+ * @param basePrice Harga dasar.
+ * @param percentageUpper Persentase rentang harga atas (misal 5% -> 0.05).
+ * @param tickSpacing Jarak antar tick valid.
+ * @param mode Mode distribusi: "balanced", "small2high", "high2small".
+ * @returns Distribusi modal untuk setiap tick valid.
  */
-export function distributeCapitalWithLimit(
+export function distributeCapitalWithModes(
   totalCapital: bigint,
-  tickLower: number,
-  tickUpper: number,
-  maxTicks: number
-): { tick: number; size: bigint, realPrice: number }[] {
-  const tickRange = tickUpper - tickLower;
+  priceLower: number,
+  priceUpper: number,
+  tickSpacing: number,
+  mode: `BALANCED` | `SMALL2HIGH` | `HIGH2SMALL`
+): { tick: number; price: number; size: bigint }[] {
 
-  if (tickRange <= 0) {
-    throw new Error('Tick range must be positive.');
+  const tickLower = getValidTick(getTickFromPrice(priceLower), tickSpacing);
+  const tickUpper = getValidTick(getTickFromPrice(priceUpper), tickSpacing);
+
+  const tickRange: number[] = [];
+  for (let tick = tickLower; tick <= tickUpper; tick += tickSpacing) {
+    tickRange.push(tick);
   }
 
-  let selectedTicks: number[];
+  // Validasi jika hanya ada 1 tick dalam range
+  if (tickRange.length <= 1) {
+    throw new Error("Rentang tick terlalu kecil untuk tick_spacing yang diberikan.");
+  }
 
-  if (maxTicks > 0) {
-    // Hitung langkah untuk mendistribusikan hanya `maxTicks`
-    const step = Math.ceil(tickRange / maxTicks);
-    selectedTicks = [];
+  const distribution: { tick: number; price: number; size: bigint }[] = [];
 
-    for (let tick = tickLower; tick < tickUpper; tick += step) {
-      if (selectedTicks.length >= maxTicks) break;
-      selectedTicks.push(tick);
+  // Distribusi modal berdasarkan mode
+  switch (mode) {
+    case "BALANCED": {
+      const capitalPerTick = totalCapital / BigInt(tickRange.length);
+      for (const tick of tickRange) {
+        distribution.push({
+          tick,
+          price: getPriceFromTick(tick),
+          size: capitalPerTick,
+        });
+      }
+      break;
     }
-  } else {
-    // Tanpa batas jumlah tick, distribusikan ke semua tick
-    selectedTicks = Array.from({ length: tickRange }, (_, i) => tickLower + i);
+
+    case "SMALL2HIGH": {
+      const totalWeight = BigInt((tickRange.length * (tickRange.length + 1)) / 2);
+      let currentWeight = 1n;
+      for (const tick of tickRange) {
+        const size = (totalCapital * currentWeight) / totalWeight;
+        distribution.push({
+          tick,
+          price: getPriceFromTick(tick),
+          size,
+        });
+        currentWeight++;
+      }
+      break;
+    }
+
+    case "HIGH2SMALL": {
+      const totalWeight = BigInt((tickRange.length * (tickRange.length + 1)) / 2);
+      let currentWeight = BigInt(tickRange.length);
+      for (const tick of tickRange) {
+        const size = (totalCapital * currentWeight) / totalWeight;
+        distribution.push({
+          tick,
+          price: getPriceFromTick(tick),
+          size,
+        });
+        currentWeight--;
+      }
+      break;
+    }
+
+    default:
+      throw new Error("Invalid mode. Use 'balanced', 'small2high', or 'high2small'.");
   }
-
-  // Pastikan selectedTicks.length > 0 untuk menghindari pembagian oleh nol
-  if (selectedTicks.length === 0) {
-    throw new Error('No ticks selected for distribution.');
-  }
-
-  // Modal per tick berdasarkan jumlah tick yang dipilih
-  const capitalPerTick = totalCapital / BigInt(selectedTicks.length);
-
-  // Distribusi modal
-  const distribution = selectedTicks.map((tick) => ({
-    tick,
-    realPrice: getPriceFromTick(tick),
-    size: capitalPerTick
-  }));
 
   return distribution;
 }

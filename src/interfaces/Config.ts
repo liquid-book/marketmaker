@@ -3,6 +3,7 @@ export interface TokenConfig {
     symbol: string;
     decimals: number;
     isNative: boolean;
+    distributeMode: `BALANCED` | `SMALL2HIGH` | `HIGH2SMALL`;
     minBalance?: number;
 }
 
@@ -11,5 +12,6 @@ export default interface Config {
     SELL_TOKEN: TokenConfig;
     RANGE_SPACING: number;
     TICK_SPACING: number;
-    DEX_CONTRACT: string;
+    BOOK_ENGINE_CA: `0x${string}`;
+    BITMAP_MANAGER_CA: `0x${string}`;
 }

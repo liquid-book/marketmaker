@@ -5,16 +5,19 @@
         "isNative": true,
         "decimals": 18,
         "minBalance": 0.01,
-        "rebalancingThreshold": 0.5
+        "rebalancingThreshold": 0.5,
+        "distributeMode": "SMALL2HIGH"
     },
     "SELL_TOKEN": {
-        "address": "0x51fFD3785c15cb59a7287b7C18cb16C0F1d2915b",
+        "address": "0x186cca6904490818AB0DC409ca59D932A2366031",
         "symbol": "USDT",
         "isNative":false,
         "decimals": 18,
-        "rebalancingThreshold": 0.5
+        "rebalancingThreshold": 0.5,
+        "distributeMode": "BALANCED"
     },
-    "TICK_SPACING": 0.05,
-    "RANGE_SPACING": 0.1,
-    "DEX_CONTRACT": "0xC09D4029716DB08ccC2A31505DBf99B66a65b890"
+    "TICK_SPACING": 10,
+    "RANGE_SPACING": 0.01,
+    "BOOK_ENGINE_CA": "0xf7b97478528a26a2bce77d2b34a5bb078adbaaf3",
+    "BITMAP_MANAGER_CA" : "0xf5277eb468001416ea15557096f7d0ff28cbfd94"
 }
