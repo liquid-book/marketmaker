@@ -1,7 +1,6 @@
 import { Contract } from "ethers";
 import erc20Abi from "./abi/erc20.json"
-import type { InterfaceAbi } from "ethers";
-import type { ContractRunner } from "ethers";
+import type { ContractRunner, InterfaceAbi } from "ethers";
 
 class ERC20 {
     private readonly instance: Contract;

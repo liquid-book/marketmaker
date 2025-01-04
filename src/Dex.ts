@@ -35,7 +35,6 @@ class Dex {
     return Number(await this.BITMAP_MANAGER.getCurrentTick());
   }
 
-  // push the buy and sell order to the orders array
   /**
    * Create Order then push it to the orders array
    * @param amount amount of token to be traded
@@ -51,20 +50,20 @@ class Dex {
    * @returns boolean if the order is executed or not
    */
   async executeOrders(noonce: number): Promise<boolean> {
-    let executeNonce = noonce + 1;
     const address: string = await this.WALLET.getAddress();
     for(let order of this.orders) {
       // this mean if index 0 was 0 amount , no need to interate another order
       if(order.amount === BigInt(0)) continue;
-
       this.Logger.info({ context: 'Dex', message: `Placing Order with tick ${order.tick} and order size ${formatEther(order.amount)}` });
 
-      this.BOOK_ENGINE.placeOrder(order.tick, order.amount, address, order.isBuy, false, {noonce: executeNonce})
+
+      this.BOOK_ENGINE.placeOrder(order.tick, order.amount, address, order.isBuy, false, {nonce: noonce})
         .then((tx) => {
           this.Logger.success({ context: 'Dex', message: `Order Submitted with tick ${order.tick} and order size ${formatEther(order.amount)}` });
         })
         .catch((err) => this.Logger.error({ context: 'Dex', message: `Order Submission Failed with tick ${order.tick} cause : ${err.message}` }));
-      executeNonce++;
+      
+        noonce++;
     }
     this.orders = [];
     return true;
@@ -113,7 +112,7 @@ class Dex {
   async subscribeEvent(bot: MMBot): Promise<void> {
     this.Logger.debug({ context: 'Dex', message: `Starting Event Listener` });
 
-    // this.BOOK_ENGINE_CA.on('JoinRaffle', async () => {
+    // this.BOOK_ENGINE_CA.on('Trade', async () => {
     //   this.Logger.info({ context: 'Dex', message: `New Trade Detected` });
     //   const sellThreshold = await bot.isThresholdPassed(`sell`);
     //   const buyThreshold = await bot.isThresholdPassed(`buy`);

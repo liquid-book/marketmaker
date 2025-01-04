@@ -109,6 +109,8 @@ class MMBot {
    * @returns void
    */
   async submitOrders(noonce: number): Promise<void> {
+    // await this.DEX_INSTANCE.Approving(this.SELL_TOKEN, this);
+    // await this.DEX_INSTANCE.Approving(this.BUY_TOKEN, this);
     await this.DEX_INSTANCE.executeOrders(noonce);
   }
 
@@ -162,8 +164,7 @@ class MMBot {
    * Main function to run the bot
    */
   async mainFunc(): Promise<void> {
-    const noonce: number = Number(await this.PROVIDER.getTransactionCount(this.MM_WALLET.address))
-
+    const noonce: number = await this.MM_WALLET.getNonce()
     await this.getTickList(`sell`)
     await this.getTickList(`buy`)
     await this.submitOrders(noonce);
